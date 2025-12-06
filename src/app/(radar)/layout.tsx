@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatWidget } from "@/components/chat/chat-widget"
+import { ChatProvider } from "@/components/chat/chat-context"
 
 export default async function RadarLayout({
   children,
@@ -18,13 +19,15 @@ export default async function RadarLayout({
   const userName = session?.user?.name || "User"
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar userName={userName} />
-      <main className="flex-1 md:ml-72 transition-all duration-300">
-        <Header userName={userName} />
-        {children}
-        <ChatWidget />
-      </main>
-    </div>
+    <ChatProvider>
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar userName={userName} />
+        <main className="flex-1 md:ml-72 transition-all duration-300">
+          <Header userName={userName} />
+          {children}
+          <ChatWidget />
+        </main>
+      </div>
+    </ChatProvider>
   )
 }
