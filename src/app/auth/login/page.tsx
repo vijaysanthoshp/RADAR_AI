@@ -75,7 +75,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 text-sm text-slate-500">
-          © 2024 RADAR System. All rights reserved.
+          © 2025 RADAR System. All rights reserved.
         </div>
       </div>
 
