@@ -348,23 +348,21 @@ export default function Dashboard() {
           </Link>
 
           {/* Renal & Fluid */}
-          <Link href="/renal" className="block">
-            <Card className="p-6 border-l-4 border-l-amber-500 shadow-md bg-amber-50/30 relative overflow-hidden group h-full cursor-pointer">
-              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                 <AlertTriangle className="h-24 w-24 text-amber-500 fill-amber-500" />
-              </div>
-              <div className="flex justify-between items-start mb-4 relative z-10">
-                <div className="bg-blue-100 p-3 rounded-xl group-hover:scale-110 transition-transform">
-                  <Droplet className="h-6 w-6 text-blue-500 fill-blue-500" />
+            <Link href="/renal" className="block">
+            <Card className="p-6 border-0 shadow-sm bg-white hover:shadow-md transition-all duration-200 group h-full cursor-pointer">
+              <div className="flex justify-between items-start mb-4">
+                <div className="bg-rose-100 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                  <Heart className="h-6 w-6 text-rose-500 fill-rose-500" />
                 </div>
-                <div className="bg-amber-100 p-1.5 rounded-full animate-pulse">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <div className="bg-emerald-100 p-1.5 rounded-full">
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
                 </div>
               </div>
               <h3 className="font-bold text-slate-800 text-lg mb-1 relative z-10">Renal & Fluid</h3>
               <p className="text-sm text-amber-700 font-medium relative z-10">Attention Required</p>
             </Card>
           </Link>
+
 
           {/* Respiratory */}
           <Link href="/respiratory" className="block">
