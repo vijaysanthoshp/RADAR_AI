@@ -4,25 +4,14 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Send, Bot, User } from "lucide-react"
+import { ArrowLeft, Send, Bot, User, Loader2 } from "lucide-react"
 import Link from "next/link"
-
-interface Message {
-  id: string
-  text: string
-  sender: 'user' | 'bot'
-  timestamp: Date
-}
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { useChat } from "@/components/chat/chat-context"
 
 export default function ChatbotPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: "Hello! I'm your Radar AI Assistant. How can I help you with your health monitoring today?",
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ])
+  const { messages, sendMessage, isLoading } = useChat()
   const [inputValue, setInputValue] = useState("")
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -36,38 +25,12 @@ export default function ChatbotPage() {
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return
-
-    const newUserMessage: Message = {
-      id: Date.now().toString(),
-      text: inputValue,
-      sender: 'user',
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, newUserMessage])
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return
+    
+    const text = inputValue
     setInputValue("")
-
-    // Mock bot response
-    setTimeout(() => {
-      const botResponses = [
-        "I understand. Could you tell me more about that?",
-        "I've noted that in your logs. Is there anything else?",
-        "Based on your recent vitals, everything looks stable.",
-        "I recommend checking your fluid intake for today.",
-        "Would you like me to schedule an appointment with Dr. Mishra?"
-      ]
-      const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)]
-
-      const newBotMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: randomResponse,
-        sender: 'bot',
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, newBotMessage])
-    }, 1000)
+    await sendMessage(text)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -122,7 +85,28 @@ export default function ChatbotPage() {
                       : 'bg-slate-100 text-slate-800 rounded-tl-none'
                   }`}
                 >
-                  {message.text}
+                  {message.sender === 'user' ? (
+                    message.text
+                  ) : (
+                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-1 last:mb-0" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-1 last:mb-0" {...props} />,
+                          li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
+                          h1: ({node, ...props}) => <h1 className="text-sm font-bold mb-1" {...props} />,
+                          h2: ({node, ...props}) => <h2 className="text-sm font-bold mb-1" {...props} />,
+                          h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-1" {...props} />,
+                          strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                          a: ({node, ...props}) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                        }}
+                      >
+                        {message.text}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                   <div
                     className={`text-[10px] mt-1 ${
                       message.sender === 'user' ? 'text-blue-200' : 'text-slate-400'
@@ -134,6 +118,18 @@ export default function ChatbotPage() {
               </div>
             </div>
           ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="flex gap-3 max-w-[80%] flex-row">
+                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-slate-200 text-slate-600">
+                  <Bot className="h-5 w-5" />
+                </div>
+                <div className="p-3 rounded-2xl text-sm bg-slate-100 text-slate-800 rounded-tl-none">
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-600" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input Area */}
@@ -144,11 +140,12 @@ export default function ChatbotPage() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              disabled={isLoading}
               className="flex-1 bg-white border-slate-200 focus-visible:ring-blue-500 text-slate-900"
             />
             <Button 
               onClick={handleSendMessage} 
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Send className="h-4 w-4" />
