@@ -26,7 +26,12 @@ const Map = dynamic(() => import("@/components/map/Map"), {
   )
 })
 
+import { useSensorData } from "@/components/data/sensor-context"
+
+// ... (keep imports)
+
 export default function ActionPage() {
+  const { data } = useSensorData()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState<{name: string, price: string} | null>(null)
 
@@ -52,16 +57,16 @@ export default function ActionPage() {
 
       {/* Urgent Status Card */}
       <Card className="relative overflow-hidden border-0 shadow-lg bg-white p-8">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-600"></div>
+        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${data.fusion.styles.gradient}`}></div>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="bg-amber-50 p-6 rounded-full mb-6 relative">
-            <div className="absolute inset-0 bg-amber-100 rounded-full animate-ping opacity-20"></div>
-            <AlertTriangle className="h-12 w-12 text-amber-500 fill-amber-500" />
+          <div className={`bg-slate-50 p-6 rounded-full mb-6 relative`}>
+            <div className={`absolute inset-0 rounded-full animate-ping opacity-20 ${data.fusion.styles.textColor.replace('text-', 'bg-')}`}></div>
+            <AlertTriangle className={`h-12 w-12 ${data.fusion.styles.textColor}`} />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Urgent Action Required</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">{data.fusion.summary}</h2>
           <div className="flex items-center gap-2">
-            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-0 px-3 py-1">
-              Status: URGENT (Yellow)
+            <Badge className={`border-0 px-3 py-1 ${data.fusion.styles.badge === 'Normal' ? 'bg-emerald-100 text-emerald-700' : data.fusion.styles.badge === 'Advisory' ? 'bg-blue-100 text-blue-700' : data.fusion.styles.badge === 'Warning' ? 'bg-yellow-100 text-yellow-700' : data.fusion.styles.badge === 'Urgent' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+              Status: {data.fusion.styles.badge.toUpperCase()} ({data.fusion.finalRisk})
             </Badge>
           </div>
         </div>
@@ -73,9 +78,9 @@ export default function ActionPage() {
           {/* 1. Diagnosis */}
           <Card className="p-6 border-0 shadow-sm bg-white hover:shadow-md transition-all duration-200">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">1. Diagnosis</p>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Fluid Overload Detected</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">{data.fusion.summary}</h2>
             <p className="text-slate-600 leading-relaxed">
-              Fluid Patch indicates +2.1kg retention. Bioimpedance falling. Risk of Pulmonary Edema.
+              {data.fusion.longTermAdvice}
             </p>
           </Card>
 
@@ -83,9 +88,9 @@ export default function ActionPage() {
           <Card className="p-6 border-0 shadow-sm bg-white hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">2. Action Timeline</p>
-              <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50">
+              <Badge variant="outline" className={`border-0 ${data.fusion.styles.textColor.replace('text-', 'bg-').replace('700', '50')} ${data.fusion.styles.textColor}`}>
                 <Clock className="h-3 w-3 mr-1" />
-                Critical Window
+                {data.fusion.finalRisk === 'RED' ? 'Critical Window' : 'Recommended Window'}
               </Badge>
             </div>
             
@@ -93,17 +98,21 @@ export default function ActionPage() {
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-sm text-slate-500 font-medium mb-1">Recommended Action Within</p>
-                  <p className="text-3xl font-bold text-slate-900">4-6 Hours</p>
+                  <p className="text-3xl font-bold text-slate-900">
+                    {data.fusion.finalRisk === 'RED' ? 'Immediate' : data.fusion.finalRisk === 'ORANGE' ? '4-6 Hours' : '24 Hours'}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-400 font-medium uppercase mb-1">Urgency</p>
-                  <p className="text-sm font-bold text-orange-600">High Priority</p>
+                  <p className={`text-sm font-bold ${data.fusion.styles.textColor}`}>
+                    {data.fusion.styles.badge} Priority
+                  </p>
                 </div>
               </div>
 
               {/* Visual Timeline Bar */}
               <div className="relative h-4 bg-slate-100 rounded-full overflow-hidden">
-                <div className="absolute top-0 left-0 h-full w-2/3 bg-gradient-to-r from-emerald-400 via-yellow-400 to-orange-500 rounded-full"></div>
+                <div className={`absolute top-0 left-0 h-full w-2/3 bg-gradient-to-r ${data.fusion.styles.gradient} rounded-full`}></div>
                 {/* Marker for current status */}
                 <div className="absolute top-0 bottom-0 w-0.5 bg-white border-l-2 border-slate-900 h-full left-[60%]"></div>
               </div>
@@ -120,7 +129,7 @@ export default function ActionPage() {
                   <Clock className="h-3.5 w-3.5 text-blue-600" />
                 </div>
                 <p className="text-sm text-slate-600 leading-snug">
-                  <span className="font-semibold text-slate-900">Why this timeline?</span> Delaying dialysis beyond 6 hours increases risk of pulmonary edema by 40%.
+                  <span className="font-semibold text-slate-900">Why this timeline?</span> {data.fusion.finalRisk === 'RED' ? 'Immediate action required to prevent complications.' : 'Timely intervention ensures better outcomes.'}
                 </p>
               </div>
             </div>
@@ -134,13 +143,7 @@ export default function ActionPage() {
                 <div className="bg-emerald-100 p-1 rounded-full mt-0.5">
                   <Check className="h-3 w-3 text-emerald-600" />
                 </div>
-                <p className="text-slate-700 font-medium">Restrict fluid intake immediately.</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="bg-emerald-100 p-1 rounded-full mt-0.5">
-                  <Check className="h-3 w-3 text-emerald-600" />
-                </div>
-                <p className="text-slate-700 font-medium">Prepare dialysis kit.</p>
+                <p className="text-slate-700 font-medium">{data.fusion.urgentActions}</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="bg-emerald-100 p-1 rounded-full mt-0.5">

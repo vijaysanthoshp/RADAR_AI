@@ -12,11 +12,52 @@ import {
 import Link from "next/link"
 import { signOut } from "next-auth/react"
 
+import { useSensorData } from "@/components/data/sensor-context"
+
 interface SidebarProps {
   userName: string
 }
 
 export function Sidebar({ userName }: SidebarProps) {
+  const { data } = useSensorData()
+  
+  const getStyles = (risk: string) => {
+    switch (risk) {
+      case "RED":
+        return { 
+          container: "bg-red-900/30 border-red-700/50", 
+          badge: "bg-red-600/20 text-red-500 border-red-600/30" 
+        }
+      case "ORANGE":
+        return { 
+          container: "bg-orange-900/30 border-orange-700/50", 
+          badge: "bg-orange-600/20 text-orange-500 border-orange-600/30" 
+        }
+      case "YELLOW":
+        return { 
+          container: "bg-yellow-900/30 border-yellow-700/50", 
+          badge: "bg-yellow-600/20 text-yellow-500 border-yellow-600/30" 
+        }
+      case "BLUE":
+        return { 
+          container: "bg-blue-900/30 border-blue-700/50", 
+          badge: "bg-blue-600/20 text-blue-500 border-blue-600/30" 
+        }
+      case "GREEN":
+        return { 
+          container: "bg-emerald-900/30 border-emerald-700/50", 
+          badge: "bg-emerald-600/20 text-emerald-500 border-emerald-600/30" 
+        }
+      default:
+        return { 
+          container: "bg-slate-900/30 border-slate-700/50", 
+          badge: "bg-slate-600/20 text-slate-500 border-slate-600/30" 
+        }
+    }
+  }
+
+  const styles = getStyles(data.fusion.finalRisk)
+
   return (
     <aside className="hidden md:flex w-72 flex-col bg-[#1a1b4b] text-white border-r border-gray-800 fixed inset-y-0 z-50 overflow-hidden">
       {/* User Profile Section */}
@@ -65,9 +106,9 @@ export function Sidebar({ userName }: SidebarProps) {
 
         <div className="mt-8 px-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Alert Status</p>
-          <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-1">
-             <div className="bg-yellow-600/20 text-yellow-500 px-3 py-2 rounded text-sm font-medium text-center border border-yellow-600/30">
-               RTAR Class: YELLOW
+          <div className={`${styles.container} border rounded-lg p-1 transition-colors duration-300`}>
+             <div className={`${styles.badge} px-3 py-2 rounded text-sm font-medium text-center border transition-colors duration-300`}>
+               RTAR Class: {data.fusion.styles.badge}
              </div>
           </div>
         </div>

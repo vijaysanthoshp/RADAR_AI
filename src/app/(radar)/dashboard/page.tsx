@@ -31,56 +31,9 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 
-interface StyleData {
-  color: string
-  bg: string
-  bar: string
-  badge: string
-  badgeColor: string
-}
+import { useSensorData } from "@/components/data/sensor-context"
 
-interface MetricData {
-  value: number
-  unit: string
-  status: string
-  styles: StyleData
-}
-
-interface FluidMetricData extends MetricData {
-  phaseAngle: number
-}
-
-interface FusionStyles {
-  borderColor: string
-  gradient: string
-  textColor: string
-  badge: string
-  iconColor: string
-}
-
-interface FusionData {
-  finalRisk: string
-  summary: string
-  urgentActions: string
-  longTermAdvice: string
-  styles: FusionStyles
-}
-
-interface SensorData {
-  urea: MetricData
-  fluid: FluidMetricData
-  heartRate: MetricData
-  spo2: MetricData
-  fusion: FusionData
-}
-
-interface ChartDataPoint {
-  time: number
-  urea: number
-  fluid: number
-  heartRate: number
-  spo2: number
-}
+// ... (keep necessary imports)
 
 const chartConfig = {
   urea: {
@@ -101,74 +54,11 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-const INITIAL_DATA: SensorData = {
-  urea: { 
-    value: 0, unit: "mg/dL", status: "GREEN", 
-    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
-  },
-  fluid: { 
-    value: 0, unit: "ECW/TBW", phaseAngle: 0, status: "GREEN", 
-    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
-  },
-  heartRate: { 
-    value: 0, unit: "bpm", status: "GREEN", 
-    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
-  },
-  spo2: { 
-    value: 0, unit: "%", status: "GREEN", 
-    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
-  },
-  fusion: {
-    finalRisk: "GREEN",
-    summary: "Initializing system...",
-    urgentActions: "Please wait while we connect to sensors.",
-    longTermAdvice: "",
-    styles: { borderColor: "border-slate-200", gradient: "from-slate-400 to-slate-500", textColor: "text-slate-600", badge: "Initializing", iconColor: "text-white" }
-  }
-}
-
 export default function Dashboard() {
-  const [data, setData] = useState<SensorData>(INITIAL_DATA)
-  const [history, setHistory] = useState<ChartDataPoint[]>([])
-  const [startTime] = useState<number>(Date.now())
+  const { data, history, startTime } = useSensorData()
+  
+  // Remove local state and useEffect
 
-  useEffect(() => {
-    const eventSource = new EventSource('/api/data')
-
-    eventSource.onmessage = (event) => {
-      try {
-        const newData: SensorData = JSON.parse(event.data)
-        setData(newData)
-        
-        // Update history for chart
-        setHistory(prev => {
-          const now = Date.now()
-          const newPoint: ChartDataPoint = {
-            time: now,
-            urea: newData.urea.value,
-            fluid: newData.fluid.value * 100, // Scale up for visibility on chart
-            heartRate: newData.heartRate.value,
-            spo2: newData.spo2.value
-          }
-          
-          // Keep data for the last 5 minutes to ensure smooth scrolling
-          // The domain logic will handle the visibility (3.75m past, 1.25m future)
-          const windowSize = 5 * 60 * 1000 
-          const cutoff = now - windowSize
-          
-          const newHistory = [...prev, newPoint].filter(point => point.time > cutoff)
-          return newHistory
-        })
-
-      } catch (error) {
-        console.error("Failed to parse sensor data", error)
-      }
-    }
-
-    return () => {
-      eventSource.close()
-    }
-  }, [])
 
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
@@ -413,8 +303,8 @@ export default function Dashboard() {
               accessibilityLayer
               data={history}
               margin={{
-                left: 0,
-                right: 0,
+                left: 50,
+                right: 20,
                 top: 10,
                 bottom: 10
               }}
@@ -424,15 +314,16 @@ export default function Dashboard() {
                 dataKey="time" 
                 type="number"
                 domain={[
-                  (dataMax: number) => {
-                    if (!dataMax || isNaN(dataMax)) return Date.now() - (3.75 * 60 * 1000)
-                    return dataMax - (3.75 * 60 * 1000)
+                  () => {
+                    const currentTime = history.length > 0 ? history[history.length - 1].time : Date.now()
+                    return Math.max(currentTime - (4 * 60 * 1000), startTime)
                   },
-                  (dataMax: number) => {
-                    if (!dataMax || isNaN(dataMax)) return Date.now() + (1.25 * 60 * 1000)
-                    return dataMax + (1.25 * 60 * 1000)
+                  () => {
+                    const currentTime = history.length > 0 ? history[history.length - 1].time : Date.now()
+                    return currentTime + (1 * 60 * 1000)
                   }
                 ]}
+                allowDataOverflow={true}
                 scale="time"
                 tickLine={false}
                 axisLine={false}
@@ -449,6 +340,7 @@ export default function Dashboard() {
                 fontSize={12} 
                 tickLine={false}
                 axisLine={false}
+                allowDataOverflow={true}
                 tickFormatter={(value) => `${value}`}
               />
               <ChartTooltip 
