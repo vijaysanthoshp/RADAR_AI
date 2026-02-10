@@ -1,15 +1,63 @@
 "use client"
 
-import { useActionState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { registerUser } from "@/app/actions/auth"
 import { Activity, ShieldCheck, Lock } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
-  const [state, action, isPending] = useActionState(registerUser, undefined)
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsLoading(true)
+    setError("")
+
+    const formData = new FormData(event.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const name = formData.get("name") as string
+
+    if (!email || !password || !name) {
+      setError("All fields are required")
+      setIsLoading(false)
+      return
+    }
+
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (signUpError) {
+      setError(signUpError.message)
+      setIsLoading(false)
+    } else {
+      // Check if email confirmation is required
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // Email confirmation is disabled, user is logged in
+        router.push("/dashboard")
+        router.refresh()
+      } else {
+        // Email confirmation required
+        router.push("/auth/login?message=Please check your email to confirm your account")
+      }
+    }
+  }
 
   return (
     <div className="w-full h-screen flex overflow-hidden">
@@ -63,10 +111,10 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form action={action} className="space-y-6">
-            {state?.error && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
               <div className="p-3 rounded-md bg-red-50 text-red-500 text-sm font-medium">
-                {state.error}
+                {error}
               </div>
             )}
             
@@ -107,9 +155,9 @@ export default function RegisterPage() {
             <Button 
               type="submit" 
               className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white"
-              disabled={isPending}
+              disabled={isLoading}
             >
-              {isPending ? "Creating account..." : "Create account"}
+              {isLoading ? "Creating account..." : "Create account"}
             </Button>
           </form>
 

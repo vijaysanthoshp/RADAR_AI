@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button"
 import { 
   Menu, 
   Bell,
-  ArrowLeft
+  LogOut
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 
 interface HeaderProps {
   userName: string
@@ -15,6 +16,14 @@ interface HeaderProps {
 
 export function Header({ userName }: HeaderProps) {
   const router = useRouter()
+  const supabase = createClient()
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push("/auth/login")
+    router.refresh()
+  }
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-4 md:hidden">
@@ -38,6 +47,14 @@ export function Header({ userName }: HeaderProps) {
         <div className="h-8 w-8 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-bold border border-teal-200">
           {userName.charAt(0).toUpperCase()}
         </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={handleLogout}
+          title="Logout"
+        >
+          <LogOut className="h-5 w-5 text-slate-600" />
+        </Button>
       </div>
     </header>
   )

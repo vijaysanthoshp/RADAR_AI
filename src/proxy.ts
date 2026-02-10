@@ -1,1 +1,3 @@
-export { auth as proxy } from "@/lib/auth"
+import { updateSession } from '@/lib/supabase/middleware'
+
+export const proxy = updateSession

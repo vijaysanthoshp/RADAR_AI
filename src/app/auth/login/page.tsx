@@ -3,37 +3,55 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { signIn } from "next-auth/react"
 import Link from "next/link"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Activity, ShieldCheck, Lock } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState("")
+  const [message, setMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const msg = searchParams.get("message")
+    if (msg && msg !== message) {
+      setMessage(msg)
+    }
+  }, [searchParams, message])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsLoading(true)
     setError("")
+    setMessage("")
     
     const formData = new FormData(event.currentTarget)
     const email = formData.get("email") as string
     const password = formData.get("password") as string
 
-    const result = await signIn("credentials", {
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      redirect: false,
     })
 
-    if (result?.error) {
-      setError("Invalid email or password")
+    if (error) {
+      console.error("Login error:", error)
+      if (error.message.includes("Email not confirmed")) {
+        setError("Please confirm your email address before logging in. Check your inbox.")
+      } else if (error.message.includes("Invalid login credentials")) {
+        setError("Invalid email or password. If you just signed up, please check your email to confirm your account first.")
+      } else {
+        setError(error.message)
+      }
       setIsLoading(false)
     } else {
       router.push("/dashboard")
+      router.refresh()
     }
   }
 
@@ -90,6 +108,17 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {message && (
+              <div className="p-3 rounded-md bg-blue-50 text-blue-700 text-sm font-medium">
+                {message}
+              </div>
+            )}
+            {error && (
+              <div className="p-3 rounded-md bg-red-50 text-red-500 text-sm font-medium">
+                {error}
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -120,12 +149,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <div className="p-3 rounded-md bg-red-50 text-red-500 text-sm font-medium">
-                {error}
-              </div>
-            )}
-
             <Button 
               type="submit" 
               className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white"
@@ -136,7 +159,7 @@ export default function LoginPage() {
           </form>
 
           <div className="text-center text-sm">
-            <span className="text-slate-600">Don't have an account? </span>
+            <span className="text-slate-600">Don&apos;t have an account? </span>
             <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
               Sign up for free
             </Link>
@@ -144,5 +167,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="w-full h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }

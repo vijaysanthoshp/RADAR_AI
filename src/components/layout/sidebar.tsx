@@ -7,10 +7,12 @@ import {
   Map,
   Info,
   Power,
-  MessageSquare
+  MessageSquare,
+  Box
 } from "lucide-react"
 import Link from "next/link"
-import { signOut } from "next-auth/react"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 import { useSensorData } from "@/components/data/sensor-context"
 
@@ -19,7 +21,15 @@ interface SidebarProps {
 }
 
 export function Sidebar({ userName }: SidebarProps) {
+  const router = useRouter()
+  const supabase = createClient()
   const { data } = useSensorData()
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push("/auth/login")
+    router.refresh()
+  }
   
   const getStyles = (risk: string) => {
     switch (risk) {
@@ -103,6 +113,12 @@ export function Sidebar({ userName }: SidebarProps) {
             AI Assistant
           </Button>
         </Link>
+        <Link href="/3d-viewer" className="block w-full">
+          <Button variant="ghost" className="w-full justify-start gap-4 text-gray-300 hover:text-white hover:bg-white/10 h-12 text-base font-normal">
+            <Box className="h-5 w-5" />
+            3D Viewer
+          </Button>
+        </Link>
 
         <div className="mt-8 px-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Alert Status</p>
@@ -119,7 +135,7 @@ export function Sidebar({ userName }: SidebarProps) {
         <Button 
           variant="ghost" 
           className="w-full justify-start gap-4 text-red-400 hover:text-red-300 hover:bg-red-900/20 h-12 text-base font-normal"
-          onClick={() => signOut({ callbackUrl: '/auth/login' })}
+          onClick={handleLogout}
         >
           <Power className="h-5 w-5" />
           Logout

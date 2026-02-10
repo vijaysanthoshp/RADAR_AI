@@ -1,23 +1,24 @@
-import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatWidget } from "@/components/chat/chat-widget"
 import { ChatProvider } from "@/components/chat/chat-context"
 import { SensorProvider } from "@/components/data/sensor-context"
+import { createClient } from "@/lib/supabase/server"
 
 export default async function RadarLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const session = await auth()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect("/auth/login")
   }
 
-  const userName = session?.user?.name || "User"
+  const userName = user.user_metadata?.name || user.email || "User"
 
   return (
     <SensorProvider>
