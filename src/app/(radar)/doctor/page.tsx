@@ -11,6 +11,7 @@ import {
   ChevronRight 
 } from "lucide-react"
 import Link from "next/link"
+import { AgenticAnalysisPanel } from "@/components/agent/AgenticAnalysisPanel"
 
 export default function DoctorPage() {
   return (
@@ -79,6 +80,14 @@ export default function DoctorPage() {
             <span className="text-sm text-slate-500">Visit clinic</span>
           </div>
         </Card>
+      </div>
+
+      {/* Agentic Analysis Section */}
+      <div className="mt-8">
+        <div className="mb-4">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Agent Analysis</p>
+        </div>
+        <AgenticAnalysisPanel />
       </div>
     </div>
   )

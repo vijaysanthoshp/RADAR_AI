@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/chart"
 
 import { useSensorData } from "@/components/data/sensor-context"
+import { VoiceControlPanel } from "@/components/voice/VoiceControlPanel"
+import { EmergencyVoiceAlert } from "@/components/voice/EmergencyVoiceAlert"
 
 // ... (keep necessary imports)
 
@@ -397,6 +399,28 @@ export default function Dashboard() {
             </LineChart>
           </ChartContainer>
         </Card>
+      </section>
+
+      {/* Voice Control Section */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Voice Assistant</h2>
+            <p className="text-sm text-slate-500">Hands-free health monitoring</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Voice Control Panel */}
+          <div className="lg:col-span-2">
+            <VoiceControlPanel />
+          </div>
+          
+          {/* Emergency Voice Alert */}
+          <div>
+            <EmergencyVoiceAlert />
+          </div>
+        </div>
       </section>
 
       {/* Graphs */}

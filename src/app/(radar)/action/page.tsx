@@ -13,8 +13,9 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { BookingModal } from "@/components/action/BookingModal"
+import { useVoice } from "@/contexts/VoiceContext"
 
 // Dynamically import Map component with no SSR
 const Map = dynamic(() => import("@/components/map/Map"), { 
@@ -42,11 +43,112 @@ interface AIAnalysis {
 
 export default function ActionPage() {
   const { data } = useSensorData()
+  const { speak, voiceEnabled, autoSpeak, language } = useVoice()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState<{name: string, price: string} | null>(null)
   
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const hasSpokenRef = useRef(false)
+  const hasAnalyzedRef = useRef(false)
+
+  // Auto-generate intelligent voice summary when page loads
+  useEffect(() => {
+    if (voiceEnabled && autoSpeak && !hasSpokenRef.current && !hasAnalyzedRef.current && data && data.fusion) {
+      hasAnalyzedRef.current = true
+      
+      // Generate intelligent summary using the agent
+      const generateVoiceSummary = async () => {
+        try {
+          const urgency = data.urgency || 'YELLOW'
+          
+          // Prepare detailed patient data for agent analysis
+          const patientContext = `
+CURRENT PATIENT STATUS:
+- Overall Urgency: ${urgency}
+- Urea Level: ${data.urea.value} mg/dL (${data.urea.risk})
+- Fluid Status: ${data.fluid.value} ECW/TBW (${data.fluid.risk})
+- Heart Rate: ${data.heartRate.value} bpm (${data.heartRate.risk})
+- SpO2: ${data.spo2.value}% (${data.spo2.risk})
+- Fusion Summary: ${data.fusion.summary}
+- Timeline: ${data.fusion.timeline}
+- Recommended Actions: ${data.fusion.actions?.join(', ')}
+
+Generate a concise, clear voice summary (2-3 sentences) explaining:
+1. What is the current health concern
+2. Why it requires attention now
+3. What immediate action the patient should take
+
+Be direct, calm, and actionable. Speak as if addressing the patient directly.`;
+
+          const response = await fetch('/api/agent-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: patientContext }],
+              sensorData: {
+                urea: { value: data.urea.value, risk: data.urea.risk },
+                fluid: { value: data.fluid.value, risk: data.fluid.risk },
+                heartRate: { value: data.heartRate.value, risk: data.heartRate.risk },
+                spo2: { value: data.spo2.value, risk: data.spo2.risk },
+              }
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            const summary = result.content || result.response || result.output;
+            
+            if (summary && !hasSpokenRef.current) {
+              hasSpokenRef.current = true;
+              try {
+                await speak(summary, { 
+                  urgency: urgency === 'CRITICAL' || urgency === 'RED' ? 'critical' : 'urgent',
+                  priority: true 
+                });
+              } catch (voiceError) {
+                // Voice failed (likely permissions), but don't fail the page
+                console.info('[Action Page] Voice synthesis skipped:', voiceError);
+              }
+            }
+          } else {
+            // Fallback to basic summary if agent fails
+            throw new Error('Agent analysis failed');
+          }
+        } catch (error) {
+          console.error('[Action Page] Voice summary generation failed:', error);
+          
+          // Fallback to simple summary
+          if (!hasSpokenRef.current) {
+            hasSpokenRef.current = true;
+            const urgency = data.urgency || 'YELLOW';
+            const urgencyText = urgency === 'CRITICAL' || urgency === 'RED' ? 'critical attention required' : 'elevated risk detected';
+            
+            const summaryMessages: Record<string, string> = {
+              en: `Warning: ${urgencyText}. Status: ${urgency}. Action required within ${data.fusion.timeline || '24 hours'}.`,
+              hi: `चेतावनी: ${urgencyText === 'critical attention required' ? 'गंभीर ध्यान आवश्यक' : 'बढ़ा हुआ जोखिम'}। ${data.fusion.timeline || '24 घंटे'} के भीतर कार्रवाई करें।`,
+              ta: `எச்சரிக்கை: ${urgencyText === 'critical attention required' ? 'முக்கியமான கவனம்' : 'உயர்ந்த ஆபத்து'}। ${data.fusion.timeline || '24 மணி'} க்குள் நடவடிக்கை எடுக்கவும்।`,
+              te: `హెచ్చరిక: ${urgencyText === 'critical attention required' ? 'క్లిష్టమైన శ్రద్ధ' : 'పెరిగిన ప్రమాదం'}। ${data.fusion.timeline || '24 గంటలు'} లోపల చర్య తీసుకోండి।`,
+            };
+
+            const message = summaryMessages[language as keyof typeof summaryMessages] || summaryMessages.en;
+            try {
+              await speak(message, { 
+                urgency: urgency === 'CRITICAL' || urgency === 'RED' ? 'critical' : 'urgent',
+                priority: true 
+              });
+            } catch (voiceError) {
+              // Voice failed (likely permissions), but don't fail the page
+              console.info('[Action Page] Fallback voice synthesis skipped:', voiceError);
+            }
+          }
+        }
+      };
+
+      // Call after 1 second delay
+      setTimeout(generateVoiceSummary, 1000);
+    }
+  }, [voiceEnabled, autoSpeak, data, speak, language])
 
   const handleBook = (name: string, price: string) => {
     setSelectedTarget({ name, price })

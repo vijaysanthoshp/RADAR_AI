@@ -35,7 +35,7 @@ export default function Map() {
           setLoading(false)
         },
         (err) => {
-          console.error("Error getting location:", err)
+          console.info("Location access denied or unavailable, using default location")
           // Default to a fallback location (e.g., New York) if permission denied
           setPosition([40.7128, -74.0060])
           setLoading(false)
