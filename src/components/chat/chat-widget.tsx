@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { MessageSquare, X, Send, Bot, User, Minimize2, Loader2, Maximize2 } from "lucide-react"
+import { MessageSquare, X, Send, Bot, User, Minimize2, Loader2, Maximize2, Mic, MicOff, Volume2 } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChat } from "@/components/chat/chat-context"
+import { useVoice } from "@/contexts/VoiceContext"
 
 export function ChatWidget() {
   const pathname = usePathname()
@@ -18,6 +19,71 @@ export function ChatWidget() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   
   const { messages, sendMessage, isLoading } = useChat()
+  const { 
+    voiceEnabled, 
+    isListening, 
+    isSpeaking, 
+    transcript, 
+    interimTranscript,
+    startListening, 
+    stopListening, 
+    speak,
+    stopSpeaking,
+    toggleAutoSpeak,
+    autoSpeak
+  } = useVoice()
+
+  const lastSpokenMessageRef = useRef<string | null>(null)
+  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Update input when voice transcript is ready
+  useEffect(() => {
+    if (transcript && isOpen && transcript.trim().length > 0) {
+      console.log('[Voice Input] Transcript received:', transcript);
+      setInputValue(transcript)
+      
+      // Clear previous timer
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current)
+      }
+      
+      // Auto-send after user stops speaking (when isListening becomes false)
+      if (!isListening) {
+        console.log('[Voice Input] User stopped speaking, auto-sending in 800ms');
+        const messageToSend = transcript; // Capture transcript in closure
+        autoSendTimerRef.current = setTimeout(() => {
+          console.log('[Voice Input] Auto-sending message:', messageToSend);
+          if (messageToSend.trim() && !isLoading) {
+            sendMessage(messageToSend).then(() => {
+              console.log('[Chat Widget] Voice message sent successfully');
+              setInputValue(""); // Clear after sending
+            }).catch((error) => {
+              console.error('[Chat Widget] Voice message failed:', error);
+            });
+          }
+        }, 800)
+      }
+    }
+    
+    return () => {
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current)
+      }
+    }
+  }, [transcript, isListening, isOpen, isLoading, sendMessage])
+
+  // Speak bot responses (only once per message, and only when chatbot is open and auto-speak is enabled)
+  useEffect(() => {
+    if (isOpen && messages.length > 0 && voiceEnabled && autoSpeak && !isLoading) {
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.sender === 'bot' && lastMessage.id !== lastSpokenMessageRef.current) {
+        lastSpokenMessageRef.current = lastMessage.id
+        // Stop any ongoing speech before speaking new message
+        stopSpeaking()
+        speak(lastMessage.text, { urgency: 'normal' })
+      }
+    }
+  }, [messages, voiceEnabled, autoSpeak, isLoading, isOpen, stopSpeaking, speak])
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -32,16 +98,33 @@ export function ChatWidget() {
   }, [messages, isOpen])
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return
+    if (!inputValue.trim() || isLoading) {
+      console.log('[Chat Widget] Cannot send:', { inputValue, isLoading });
+      return;
+    }
     
     const text = inputValue
     setInputValue("")
-    await sendMessage(text)
+    console.log('[Chat Widget] Sending message to chat context:', text);
+    try {
+      await sendMessage(text)
+      console.log('[Chat Widget] Message sent successfully');
+    } catch (error) {
+      console.error('[Chat Widget] Send message failed:', error);
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSendMessage()
+    }
+  }
+
+  const handleVoiceInput = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      startListening()
     }
   }
 
@@ -68,6 +151,17 @@ export function ChatWidget() {
               <span className="font-bold text-white text-sm">AI Assistant</span>
             </div>
             <div className="flex items-center gap-1">
+              {voiceEnabled && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 text-slate-400 hover:text-white hover:bg-white/10"
+                  onClick={toggleAutoSpeak}
+                  title={autoSpeak ? "Turn off auto-voice" : "Turn on auto-voice"}
+                >
+                  <Volume2 className={`h-4 w-4 ${autoSpeak ? 'text-green-400' : 'text-slate-400'}`} />
+                </Button>
+              )}
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -141,7 +235,50 @@ export function ChatWidget() {
 
           {/* Input */}
           <div className="p-3 bg-white border-t border-slate-100">
+            {/* Voice Status Indicator */}
+            {voiceEnabled && (isListening || isSpeaking) && (
+              <div className="mb-2 flex items-center gap-2 text-xs">
+                {isListening && (
+                  <div className="flex items-center gap-1 text-red-600 animate-pulse">
+                    <Mic className="h-3 w-3" />
+                    <span>Listening{interimTranscript ? `: ${interimTranscript}...` : '...'}</span>
+                  </div>
+                )}
+                {isSpeaking && (
+                  <div className="flex items-center gap-1 text-green-600 animate-pulse">
+                    <Volume2 className="h-3 w-3" />
+                    <span>Speaking...</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="flex gap-2">
+              {voiceEnabled && (
+                <>
+                  <Button 
+                    size="icon"
+                    variant={isListening ? "destructive" : "outline"}
+                    onClick={handleVoiceInput} 
+                    disabled={isLoading}
+                    className={`h-8 w-8 shrink-0 ${isListening ? 'animate-pulse' : ''}`}
+                    title={isListening ? "Stop listening" : "Start voice input"}
+                  >
+                    {isListening ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                  </Button>
+                  {isSpeaking && (
+                    <Button 
+                      size="icon"
+                      variant="destructive"
+                      onClick={stopSpeaking} 
+                      className="h-8 w-8 shrink-0"
+                      title="Stop speaking"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </>
+              )}
               <Input
                 placeholder="Ask about your vitals..."
                 value={inputValue}
