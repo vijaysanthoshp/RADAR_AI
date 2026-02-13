@@ -82,17 +82,21 @@ class ElevenLabsTTSService {
       // Generate audio stream
       const audio = await this.client.textToSpeech.convert(voiceId, {
         text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: voiceSettings,
+        modelId: "eleven_multilingual_v2",
+        voiceSettings: voiceSettings,
       });
 
-      // Convert stream to blob
-      const chunks: BlobPart[] = [];
-      for await (const chunk of audio) {
-        chunks.push(chunk);
+      // Convert stream to blob - handle ReadableStream properly
+      const reader = audio.getReader();
+      const chunks: Uint8Array[] = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
       }
 
-      const blob = new Blob(chunks, { type: 'audio/mpeg' });
+      const blob = new Blob(chunks as BlobPart[], { type: 'audio/mpeg' });
       const url = URL.createObjectURL(blob);
 
       // Play audio
@@ -154,7 +158,7 @@ class ElevenLabsTTSService {
         resolve();
       };
       utterance.onerror = (event) => {
-        // Handle "not-allowed" error gracefully (browser autoplay policy)
+        // Handle graceful errors (expected behaviors)
         if (event.error === 'not-allowed') {
           console.info('[Voice] Speech blocked by browser autoplay policy. User interaction required first.');
           options.onEnd?.(); // Treat as completed, not an error
@@ -162,10 +166,31 @@ class ElevenLabsTTSService {
           return;
         }
         
+        if (event.error === 'interrupted') {
+          console.info('[Voice] Speech interrupted by new speech request (expected behavior).');
+          options.onEnd?.(); // Treat as completed, not an error
+          resolve(); // Resolve instead of reject
+          return;
+        }
+
+        if (event.error === 'canceled' || event.error === 'cancelled') {
+          console.info('[Voice] Speech cancelled (expected behavior).');
+          options.onEnd?.();
+          resolve();
+          return;
+        }
+        
+        // Only log actual errors
+        console.error('[Voice] Speech synthesis error:', event.error);
         const error = new Error(`Speech synthesis error: ${event.error}`);
         options.onError?.(error);
         reject(error);
       };
+
+      // Cancel any ongoing speech before starting new one
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
 
       window.speechSynthesis.speak(utterance);
     });

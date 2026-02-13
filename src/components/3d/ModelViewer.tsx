@@ -6,34 +6,72 @@ import { OrbitControls, useGLTF, Environment, PerspectiveCamera } from '@react-t
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Loader2, X, Activity } from 'lucide-react'
+import { Loader2, X, Activity, AlertCircle } from 'lucide-react'
 import * as THREE from 'three'
 
 interface SensorInfo {
   name: string
   purpose: string
   description: string
+  what: string[]
+  why: string[]
   position: [number, number, number]
 }
 
 const SENSORS: SensorInfo[] = [
   {
-    name: "ECG Sensor",
-    purpose: "Heart Activity Monitoring",
-    description: "Continuously monitors electrical signals from the heart to detect arrhythmias, heart rate variability, and other cardiac conditions. Provides real-time ECG waveforms for immediate analysis.",
-    position: [0.35, 0.35, 0.45]  // Upper right chest - square ECG sensor
+    name: "Cardio Autonomic Sensor Module (Vest A)",
+    purpose: "Cardiac & Autonomic Monitoring",
+    description: "Advanced cardiovascular monitoring system integrated into a wearable vest, providing comprehensive cardiac and autonomic nervous system assessment for dialysis patients.",
+    what: [
+      "1-Lead ECG with continuous monitoring",
+      "HRV (time + frequency domain analysis)",
+      "Skin Temperature tracking",
+      "Posture detection & monitoring"
+    ],
+    why: [
+      "Hyperkalemia-driven arrhythmias detection",
+      "Autonomic dysfunction assessment",
+      "Monitors for infection/fever",
+      "Fall detection & artifact suppression"
+    ],
+    position: [0.35, 0.35, 0.45]
   },
   {
-    name: "SpO2 Sensor",
-    purpose: "Blood Oxygen Monitoring",
-    description: "Measures peripheral oxygen saturation levels in the blood using photoplethysmography. Critical for detecting hypoxemia and respiratory issues in real-time.",
-    position: [-0.38, -0.35, 0.45]  // Lower left - small SpO2 sensor with green light
+    name: "Thoracic Bioimpedance Sensor Module (Vest B)",
+    purpose: "Fluid Status & Circulatory Monitoring",
+    description: "Comprehensive fluid and circulatory assessment module essential for detecting volume overload and cardiovascular complications in dialysis patients.",
+    what: [
+      "Thoracic bioimpedance measurement",
+      "Peripheral Temperature Gradient",
+      "Skin Conductance monitoring",
+      "Edema detection"
+    ],
+    why: [
+      "Lung Fluid accumulation detection",
+      "Circulatory Compromise assessment",
+      "Autonomic Stress evaluation",
+      "Volume Overload prevention"
+    ],
+    position: [-0.38, -0.35, 0.45]
   },
   {
-    name: "Multi-Parameter Sensor",
-    purpose: "Comprehensive Vital Monitoring",
-    description: "Advanced sensor module that tracks temperature, heart rate, respiratory rate, and activity levels. Displays real-time readings on integrated OLED screen for immediate patient assessment.",
-    position: [0.38, -0.35, 0.45]  // Lower right - large display sensor
+    name: "System Core Module (SCM)",
+    purpose: "Edge Processing & Real-Time Analytics",
+    description: "Intelligent edge computing unit with integrated display, ensuring autonomous and continuous patient monitoring with zero latency requirements.",
+    what: [
+      "Local edge processing unit",
+      "Real-time data analysis",
+      "Integrated OLED display",
+      "Autonomous operation capability"
+    ],
+    why: [
+      "Real-time vital sign monitoring",
+      "Independent of phone connectivity",
+      "Continuous internet-free operation",
+      "Low latency critical alert processing"
+    ],
+    position: [0.38, -0.35, 0.45]
   }
 ]
 
@@ -250,22 +288,60 @@ export function ModelViewer({ modelPath, title, description }: ModelViewerProps)
 
       {/* Sensor Information Dialog */}
       <Dialog open={!!selectedSensor} onOpenChange={closeSensorDialog}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
               <Activity className="h-6 w-6" />
               {selectedSensor?.name}
             </DialogTitle>
-            <DialogDescription className="text-slate-300 text-base">
+            <DialogDescription className="text-slate-300 text-base font-medium">
               {selectedSensor?.purpose}
             </DialogDescription>
           </DialogHeader>
+          
           <div className="mt-4 space-y-4">
+            {/* Description */}
             <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
               <p className="text-sm text-slate-300 leading-relaxed">
                 {selectedSensor?.description}
               </p>
             </div>
+
+            {/* What & Why Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* WHAT Section */}
+              <div className="bg-gradient-to-br from-blue-900/30 to-slate-800/50 rounded-lg p-4 border border-blue-700/50">
+                <h3 className="text-lg font-bold text-blue-400 mb-3 flex items-center gap-2">
+                  <span className="bg-blue-500 text-white px-2 py-0.5 rounded text-sm font-bold">WHAT?</span>
+                  Parameters Measured
+                </h3>
+                <ul className="space-y-2">
+                  {selectedSensor?.what.map((item, index) => (
+                    <li key={index} className="text-sm text-slate-300 flex items-start gap-2">
+                      <span className="text-blue-400 mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* WHY Section */}
+              <div className="bg-gradient-to-br from-emerald-900/30 to-slate-800/50 rounded-lg p-4 border border-emerald-700/50">
+                <h3 className="text-lg font-bold text-emerald-400 mb-3 flex items-center gap-2">
+                  <span className="bg-emerald-500 text-white px-2 py-0.5 rounded text-sm font-bold">WHY?</span>
+                  Clinical Purpose
+                </h3>
+                <ul className="space-y-2">
+                  {selectedSensor?.why.map((item, index) => (
+                    <li key={index} className="text-sm text-slate-300 flex items-start gap-2">
+                      <span className="text-emerald-400 mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
             <Button
               onClick={closeSensorDialog}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"

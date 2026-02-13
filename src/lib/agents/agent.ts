@@ -15,19 +15,31 @@
  */
 
 import { ChatGroq } from "@langchain/groq";
-import { createAgentExecutor } from "@langchain/langgraph/prebuilt";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { radarAgentTools } from "./tools";
 
-// Initialize the Groq LLM with function calling support
+// Initialize the Groq LLM
 const llm = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY!,
-  model: "llama-3.3-70b-versatile", // Best model for function calling
-  temperature: 0.1, // Low temperature for consistent medical reasoning
+  model: "llama-3.3-70b-versatile",
+  temperature: 0.1,
   maxTokens: 4096,
 });
 
 // Bind tools to the LLM for function calling
-const llmWithTools = llm.bindTools(radarAgentTools);
+const llmWithTools = llm.bind({
+  tools: radarAgentTools.map(tool => {
+    const toolDef = tool as any;
+    return {
+      type: "function",
+      function: {
+        name: toolDef.name,
+        description: toolDef.description,
+        parameters: toolDef.schema || {},
+      },
+    };
+  }),
+});
 
 // Medical-grade system prompt for R.A.D.A.R. agent
 const RADAR_SYSTEM_PROMPT = `You are the R.A.D.A.R. Medical Surveillance AI Agent - an expert nephrologist and critical care specialist embedded in a continuous patient monitoring system.
@@ -161,12 +173,81 @@ You have access to 5 specialized tools. Use them intelligently:
 
 You are now active. Analyze patient data, use tools autonomously, and provide life-saving clinical decision support.`;
 
-// Create the agent executor using LangGraph
-export const radarAgentExecutor = createAgentExecutor({
-  llm: llmWithTools,
-  tools: radarAgentTools,
-  messageModifier: RADAR_SYSTEM_PROMPT,
-});
+/**
+ * Simple agentic loop - doesn't require LangGraph
+ * Executes tools when requested by the LLM
+ */
+async function runAgenticLoop(
+  messages: any[],
+  maxIterations: number = 5
+): Promise<{ output: string; reasoning: any[] }> {
+  const reasoning: any[] = [];
+  let currentMessages = [...messages];
+
+  for (let i = 0; i < maxIterations; i++) {
+    console.log(`[Agent] Iteration ${i + 1}/${maxIterations}`);
+    
+    const response = await llmWithTools.invoke(currentMessages);
+    
+    // Check if the response contains tool calls
+    const toolCalls = (response as any).additional_kwargs?.tool_calls || [];
+    
+    if (toolCalls.length === 0) {
+      // No more tool calls - return final response
+      return {
+        output: response.content as string,
+        reasoning,
+      };
+    }
+
+    // Execute tool calls
+    for (const toolCall of toolCalls) {
+      const toolName = toolCall.function.name;
+      const toolArgs = JSON.parse(toolCall.function.arguments);
+      
+      console.log(`[Agent] Calling tool: ${toolName}`, toolArgs);
+      
+      // Find and execute the tool
+      const tool = radarAgentTools.find(t => t.name === toolName);
+      if (!tool) {
+        console.error(`[Agent] Tool not found: ${toolName}`);
+        continue;
+      }
+
+      try {
+        const toolResult = await tool.func(toolArgs);
+        
+        reasoning.push({
+          tool: toolName,
+          input: toolArgs,
+          observation: toolResult,
+        });
+
+        // Add tool result to messages
+        currentMessages.push(response);
+        currentMessages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: toolResult,
+        });
+      } catch (error) {
+        console.error(`[Agent] Tool execution error:`, error);
+        reasoning.push({
+          tool: toolName,
+          input: toolArgs,
+          observation: `Error: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+  }
+
+  // If we hit max iterations, return what we have
+  const finalResponse = await llm.invoke(currentMessages);
+  return {
+    output: finalResponse.content as string,
+    reasoning,
+  };
+}
 
 /**
  * Execute the R.A.D.A.R. agent with patient data
@@ -184,7 +265,13 @@ export async function executeRadarAgent(
   },
   previousAnalysis?: string
 ) {
-  const input = `
+  try {
+    // Validate API key
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY is not configured in environment variables');
+    }
+
+    const input = `
 ## PATIENT VITAL SIGNS (Current Reading)
 
 **UREA (Kidney Function)**
@@ -220,16 +307,25 @@ Perform a comprehensive multi-step medical analysis:
 Use your tools intelligently. Think step-by-step. Lives depend on accurate, timely assessment.
 `;
 
-  const result = await radarAgentExecutor.invoke({
-    messages: [{ role: "user", content: input }],
-  });
+    console.log('[R.A.D.A.R. Agent] Invoking agent with input length:', input.length);
+    
+    // Run the agentic loop
+    const result = await runAgenticLoop([
+      new SystemMessage(RADAR_SYSTEM_PROMPT),
+      new HumanMessage(input),
+    ]);
 
-  // Extract response from LangGraph result
-  const finalMessages = result.messages;
-  const lastMessage = finalMessages[finalMessages.length - 1];
-  
-  return {
-    output: lastMessage.content,
-    reasoning: [], // LangGraph doesn't expose intermediate steps the same way
-  };
+    console.log('[R.A.D.A.R. Agent] Agent execution complete');
+    console.log('[R.A.D.A.R. Agent] Tools used:', result.reasoning.map(r => r.tool).join(', '));
+
+    return result;
+  } catch (error) {
+    console.error('[R.A.D.A.R. Agent] Execution error:', error);
+    console.error('[R.A.D.A.R. Agent] Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack',
+    });
+    throw error; // Re-throw to be caught by the API route
+  }
 }

@@ -78,7 +78,9 @@ export function AgenticAnalysisPanel() {
       })
 
       if (!response.ok) {
-        throw new Error('Analysis failed')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        const errorMessage = errorData.technicalDetails || errorData.message || errorData.error || 'Analysis failed'
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

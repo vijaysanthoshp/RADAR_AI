@@ -21,7 +21,7 @@ export const getPatientHistoryTool = new DynamicStructuredTool({
   Critical for determining intervention urgency.`,
   schema: z.object({
     timeRange: z.enum(["1h", "6h", "24h", "7d"]).describe("Time range to retrieve: 1 hour, 6 hours, 24 hours, or 7 days"),
-    parameters: z.array(z.enum(["urea", "fluid", "heartRate", "spo2", "all"])).describe("Which parameters to retrieve"),
+    parameters: z.array(z.enum(["urea", "fluid", "heartRate", "spo2", "respiratoryRate", "perfusionIndex", "all"])).describe("Which parameters to retrieve"),
   }),
   func: async ({ timeRange, parameters }) => {
     // Mock patient history - In production, this would query a time-series database
@@ -31,30 +31,38 @@ export const getPatientHistoryTool = new DynamicStructuredTool({
         fluid: { trend: "increasing", values: [0.38, 0.39, 0.40, 0.41], avgChange: "+0.03" },
         heartRate: { trend: "stable", values: [72, 74, 73, 75], avgChange: "+3 bpm" },
         spo2: { trend: "stable", values: [98, 98, 97, 97], avgChange: "-1%" },
+        respiratoryRate: { trend: "stable", values: [16, 17, 16, 17], avgChange: "+1 brpm" },
+        perfusionIndex: { trend: "stable", values: [2.5, 2.4, 2.5, 2.4], avgChange: "-0.1" },
       },
       "6h": {
         urea: { trend: "increasing", values: [35, 45, 58, 72, 85, 92], avgChange: "+57 mg/dL (163% increase)" },
         fluid: { trend: "critical_increase", values: [0.38, 0.40, 0.42, 0.44, 0.46, 0.47], avgChange: "+0.09 (24% increase)" },
         heartRate: { trend: "escalating", values: [72, 82, 95, 108, 118, 125], avgChange: "+53 bpm (74% increase)" },
         spo2: { trend: "declining", values: [98, 97, 96, 95, 93, 92], avgChange: "-6% (concerning)" },
+        respiratoryRate: { trend: "increasing", values: [16, 18, 20, 23, 26, 28], avgChange: "+12 brpm (75% increase)" },
+        perfusionIndex: { trend: "declining", values: [2.5, 2.2, 1.8, 1.4, 1.0, 0.7], avgChange: "-1.8 (72% decrease - concerning)" },
       },
       "24h": {
         urea: { trend: "severe_escalation", values: [35, 65, 95, 125, 145, 160], avgChange: "+125 mg/dL (357% increase)" },
         fluid: { trend: "critical", values: [0.38, 0.42, 0.45, 0.47, 0.49, 0.50], avgChange: "+0.12 (32% increase - CRITICAL)" },
         heartRate: { trend: "tachycardia", values: [72, 95, 115, 130, 140, 145], avgChange: "+73 bpm (101% increase)" },
         spo2: { trend: "hypoxia_risk", values: [98, 96, 93, 90, 87, 84], avgChange: "-14% (CRITICAL HYPOXIA)" },
+        respiratoryRate: { trend: "tachypnea", values: [16, 20, 24, 27, 29, 30], avgChange: "+14 brpm (88% increase - CRITICAL)" },
+        perfusionIndex: { trend: "shock_risk", values: [2.5, 2.0, 1.5, 1.0, 0.6, 0.4], avgChange: "-2.1 (84% decrease - CRITICAL SHOCK RISK)" },
       },
       "7d": {
         urea: { trend: "baseline_comparison", baseline: 35, current: 160, change: "+357%", note: "Patient was stable 7 days ago" },
         fluid: { trend: "progressive_overload", baseline: 0.38, current: 0.50, change: "+32%", note: "Consistent fluid accumulation post-dialysis" },
         heartRate: { trend: "autonomic_stress", baseline: 72, current: 145, change: "+101%", note: "Possible sepsis or volume overload" },
         spo2: { trend: "pulmonary_compromise", baseline: 98, current: 84, change: "-14%", note: "Suggests pulmonary edema from fluid overload" },
+        respiratoryRate: { trend: "respiratory_distress", baseline: 16, current: 30, change: "+88%", note: "Progressive respiratory distress - fluid overload likely" },
+        perfusionIndex: { trend: "perfusion_failure", baseline: 2.5, current: 0.4, change: "-84%", note: "Critical perfusion decline - shock state" },
       }
     };
 
     const data = mockHistory[timeRange as keyof typeof mockHistory];
     const selectedParams = parameters.includes("all") 
-      ? ["urea", "fluid", "heartRate", "spo2"] 
+      ? ["urea", "fluid", "heartRate", "spo2", "respiratoryRate", "perfusionIndex"] 
       : parameters;
 
     const result = selectedParams.reduce((acc: any, param) => {

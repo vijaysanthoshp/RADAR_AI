@@ -5,6 +5,7 @@ import {
   calculateFusionScore, 
   generateFusionOutput 
 } from '@/lib/data-utils';
+import { notificationService, NotificationPayload, PatientData } from '@/lib/notifications/notificationService';
 
 export async function GET(request: Request) {
   const encoder = new TextEncoder();
@@ -14,11 +15,12 @@ export async function GET(request: Request) {
       const startTime = Date.now();
       let lastHrUpdate = 0;
       let lastUreaUpdate = 0;
+      let previousRisk: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED' = 'GREEN';
       
       // Initialize with baseline data
       let currentData = generatePatientData(0);
 
-      const sendData = () => {
+      const sendData = async () => {
         const now = Date.now();
         const elapsed = now - startTime;
         
@@ -26,10 +28,12 @@ export async function GET(request: Request) {
         const simulatedSnapshot = generatePatientData(elapsed);
         let updated = false;
 
-        // Update HR & SpO2 every 3 seconds
+        // Update HR & SpO2 & RR & PPI every 3 seconds
         if (elapsed - lastHrUpdate >= 3000) {
           currentData.heartRate = simulatedSnapshot.heartRate;
           currentData.spo2 = simulatedSnapshot.spo2;
+          currentData.respiratoryRate = simulatedSnapshot.respiratoryRate;
+          currentData.perfusionIndex = simulatedSnapshot.perfusionIndex;
           lastHrUpdate = elapsed;
           updated = true;
         }
@@ -45,19 +49,68 @@ export async function GET(request: Request) {
         // If any parameter updated, re-calculate fusion to ensure consistency
         if (updated) {
           const fusionScore = calculateFusionScore(
-            currentData.urea.risk, 
-            currentData.fluid.risk, 
             currentData.heartRate.risk, 
-            currentData.spo2.risk
+            currentData.spo2.risk,
+            currentData.respiratoryRate.risk,
+            currentData.perfusionIndex.risk
           );
           
           currentData.fusion = generateFusionOutput(
             fusionScore,
-            currentData.urea.risk,
-            currentData.fluid.risk,
             currentData.heartRate.risk,
-            currentData.spo2.risk
+            currentData.spo2.risk,
+            currentData.respiratoryRate.risk,
+            currentData.perfusionIndex.risk
           );
+
+          // Check if risk level has changed and trigger alerts
+          const currentRisk = currentData.fusion.finalRisk;
+          
+          console.log(`[ALERT-CHECK] Current: ${currentRisk}, Previous: ${previousRisk}`);
+          
+          if (currentRisk !== previousRisk) {
+            console.log(`🔄 Risk level changed: ${previousRisk} → ${currentRisk}`);
+            
+            // Send alerts for YELLOW, ORANGE, RED (not GREEN)
+            if (currentRisk !== 'GREEN') {
+              console.log(`🚨 TRIGGERING ALERT for ${currentRisk} level`);
+              
+              // Patient data for notification
+              const patientData: PatientData = {
+                patientId: 'RAD-2025-X99',
+                patientName: 'Patient X99',
+                heartRate: currentData.heartRate.value,
+                respiratoryRate: currentData.respiratoryRate.value,
+                spo2: currentData.spo2.value,
+                perfusionIndex: currentData.perfusionIndex.value,
+                fusionScore: currentData.fusion.score,
+                fusionRisk: currentRisk,
+              };
+
+              const payload: NotificationPayload = {
+                severity: currentRisk,
+                message: currentData.fusion.summary,
+                patientData,
+                timestamp: Date.now(),
+                alertType: 'vital_sign_critical',
+              };
+
+              // Send multi-channel alerts (non-blocking)
+              notificationService.sendAlert(payload).catch(error => {
+                console.error('❌ ALERT SEND FAILED:', error);
+              });
+            } else {
+              console.log(`✅ Risk returned to GREEN - no alert needed`);
+            }
+          } else {
+            // Risk hasn't changed - this is normal
+            // Only log for non-GREEN levels to reduce noise
+            if (currentRisk !== 'GREEN') {
+              console.log(`⚪ Risk still at ${currentRisk} - no alert (waiting for change or cooldown to expire)`);
+            }
+          }
+
+          previousRisk = currentRisk;
         }
 
         const message = `data: ${JSON.stringify(currentData)}\n\n`;
@@ -65,7 +118,7 @@ export async function GET(request: Request) {
       };
 
       // Send initial data immediately
-      sendData();
+      await sendData();
 
       // Check for updates every 1 second
       const intervalId = setInterval(sendData, 1000);

@@ -60,19 +60,19 @@ export default function ActionPage() {
       // Generate intelligent summary using the agent
       const generateVoiceSummary = async () => {
         try {
-          const urgency = data.urgency || 'YELLOW'
+          const urgency = data.fusion.finalRisk || 'YELLOW'
           
           // Prepare detailed patient data for agent analysis
           const patientContext = `
 CURRENT PATIENT STATUS:
 - Overall Urgency: ${urgency}
-- Urea Level: ${data.urea.value} mg/dL (${data.urea.risk})
-- Fluid Status: ${data.fluid.value} ECW/TBW (${data.fluid.risk})
-- Heart Rate: ${data.heartRate.value} bpm (${data.heartRate.risk})
-- SpO2: ${data.spo2.value}% (${data.spo2.risk})
+- Urea Level: ${data.urea.value} mg/dL (${data.urea.status})
+- Fluid Status: ${data.fluid.value} ECW/TBW (${data.fluid.status})
+- Heart Rate: ${data.heartRate.value} bpm (${data.heartRate.status})
+- SpO2: ${data.spo2.value}% (${data.spo2.status})
 - Fusion Summary: ${data.fusion.summary}
-- Timeline: ${data.fusion.timeline}
-- Recommended Actions: ${data.fusion.actions?.join(', ')}
+- Urgent Actions: ${data.fusion.urgentActions}
+- Long Term Advice: ${data.fusion.longTermAdvice}
 
 Generate a concise, clear voice summary (2-3 sentences) explaining:
 1. What is the current health concern
@@ -87,10 +87,10 @@ Be direct, calm, and actionable. Speak as if addressing the patient directly.`;
             body: JSON.stringify({
               messages: [{ role: 'user', content: patientContext }],
               sensorData: {
-                urea: { value: data.urea.value, risk: data.urea.risk },
-                fluid: { value: data.fluid.value, risk: data.fluid.risk },
-                heartRate: { value: data.heartRate.value, risk: data.heartRate.risk },
-                spo2: { value: data.spo2.value, risk: data.spo2.risk },
+                urea: { value: data.urea.value, risk: data.urea.status },
+                fluid: { value: data.fluid.value, risk: data.fluid.status },
+                heartRate: { value: data.heartRate.value, risk: data.heartRate.status },
+                spo2: { value: data.spo2.value, risk: data.spo2.status },
               }
             }),
           });
@@ -121,14 +121,14 @@ Be direct, calm, and actionable. Speak as if addressing the patient directly.`;
           // Fallback to simple summary
           if (!hasSpokenRef.current) {
             hasSpokenRef.current = true;
-            const urgency = data.urgency || 'YELLOW';
+            const urgency = data.fusion.finalRisk || 'YELLOW';
             const urgencyText = urgency === 'CRITICAL' || urgency === 'RED' ? 'critical attention required' : 'elevated risk detected';
             
             const summaryMessages: Record<string, string> = {
-              en: `Warning: ${urgencyText}. Status: ${urgency}. Action required within ${data.fusion.timeline || '24 hours'}.`,
-              hi: `चेतावनी: ${urgencyText === 'critical attention required' ? 'गंभीर ध्यान आवश्यक' : 'बढ़ा हुआ जोखिम'}। ${data.fusion.timeline || '24 घंटे'} के भीतर कार्रवाई करें।`,
-              ta: `எச்சரிக்கை: ${urgencyText === 'critical attention required' ? 'முக்கியமான கவனம்' : 'உயர்ந்த ஆபத்து'}। ${data.fusion.timeline || '24 மணி'} க்குள் நடவடிக்கை எடுக்கவும்।`,
-              te: `హెచ్చరిక: ${urgencyText === 'critical attention required' ? 'క్లిష్టమైన శ్రద్ధ' : 'పెరిగిన ప్రమాదం'}। ${data.fusion.timeline || '24 గంటలు'} లోపల చర్య తీసుకోండి।`,
+              en: `Warning: ${urgencyText}. Status: ${urgency}. Action required within 24 hours.`,
+              hi: `चेतावनी: ${urgencyText === 'critical attention required' ? 'गंभीर ध्यान आवश्यक' : 'बढ़ा हुआ जोखिम'}। 24 घंटे के भीतर कार्रवाई करें।`,
+              ta: `எச்சரிக்கை: ${urgencyText === 'critical attention required' ? 'முக்கியமான கவனம்' : 'உயர்ந்த ஆபத்து'}। 24 மணி க்குள் நடவடிக்கை எடுக்கவும்।`,
+              te: `హెచ్చరిక: ${urgencyText === 'critical attention required' ? 'క్లిష్టమైన శ్రద్ధ' : 'పెరిగిన ప్రమాదం'}। 24 గంటలు లోపల చర్య తీసుకోండి।`,
             };
 
             const message = summaryMessages[language as keyof typeof summaryMessages] || summaryMessages.en;

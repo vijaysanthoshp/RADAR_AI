@@ -92,23 +92,31 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const { urgency = 'normal', priority = false } = options;
 
-    // If priority, speak immediately (skip queue)
-    if (priority) {
+    // If priority or urgent, speak immediately (skip queue)
+    if (priority || urgency === 'urgent' || urgency === 'critical') {
       voiceTTS.stop(); // Stop current speech
       setState(prev => ({ ...prev, isSpeaking: true, ttsQueue: [] }));
 
-      await voiceTTS.speak(text, {
-        language: state.language,
-        urgency,
-        onStart: () => setState(prev => ({ ...prev, isSpeaking: true })),
-        onEnd: () => setState(prev => ({ ...prev, isSpeaking: false })),
-        onError: (error) => {
-          console.error('[Voice] TTS Error:', error);
-          setState(prev => ({ ...prev, isSpeaking: false }));
-        },
-      });
+      // Small delay to ensure previous speech is fully cancelled
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await voiceTTS.speak(text, {
+          language: state.language,
+          urgency,
+          onStart: () => setState(prev => ({ ...prev, isSpeaking: true })),
+          onEnd: () => setState(prev => ({ ...prev, isSpeaking: false })),
+          onError: (error) => {
+            console.error('[Voice] TTS Error:', error);
+            setState(prev => ({ ...prev, isSpeaking: false }));
+          },
+        });
+      } catch (error) {
+        console.error('[Voice] Speak error:', error);
+        setState(prev => ({ ...prev, isSpeaking: false }));
+      }
     } else {
-      // Add to queue
+      // Add to queue for non-urgent speech
       setState(prev => ({ ...prev, ttsQueue: [...prev.ttsQueue, text] }));
     }
   }, [state.voiceEnabled, state.language]);
@@ -141,11 +149,20 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const stopSpeaking = useCallback(() => {
     voiceTTS.stop();
-    setState(prev => ({ ...prev, isSpeaking: false }));
+    setState(prev => ({ 
+      ...prev, 
+      isSpeaking: false,
+      ttsQueue: [] // Clear queue when stopping to prevent stale speech
+    }));
   }, []);
 
   const clearQueue = useCallback(() => {
-    setState(prev => ({ ...prev, ttsQueue: [] }));
+    voiceTTS.stop(); // Also stop any ongoing speech
+    setState(prev => ({ 
+      ...prev, 
+      ttsQueue: [],
+      isSpeaking: false 
+    }));
   }, []);
 
   // ==================== STT METHODS ====================

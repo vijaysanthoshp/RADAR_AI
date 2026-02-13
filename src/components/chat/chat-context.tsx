@@ -101,19 +101,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.log('[Chat] Could not fetch current sensor data, continuing without it:', sensorError);
       }
 
-      // Call the AGENTIC chat endpoint with tools (with 60s timeout)
-      console.log('[Chat] Calling agent-chat API...');
+      // Call the simple chat endpoint (reliable, no tool validation issues)
+      console.log('[Chat] Calling chat API...');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      const response = await fetch('/api/agent-chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
           messages: apiMessages,
-          sensorData: sensorData, // Provide context to the agent
         }),
         signal: controller.signal,
       });
@@ -129,14 +128,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       console.log('[Chat Response] Raw data:', data);
       
-      // Show tool usage info if available
       let responseText = data.content || data.response || data.output || "I'm sorry, I couldn't generate a response.";
       console.log('[Chat Response] Extracted text:', responseText);
-      
-      if (data.reasoning && data.reasoning.length > 0) {
-        const toolsUsed = data.reasoning.map((r: any) => r.tool).join(', ');
-        console.log(`[Agent Tools Used]: ${toolsUsed}`);
-      }
       
       const newBotMessage: Message = {
         id: (Date.now() + 1).toString(),
