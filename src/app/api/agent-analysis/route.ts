@@ -72,11 +72,28 @@ export async function POST(req: Request) {
 
   } catch (error) {
     console.error('[R.A.D.A.R. Agent] Error:', error);
+    console.error('[R.A.D.A.R. Agent] Error Stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Check for specific error types
+    let errorDetails = 'Unknown error';
+    if (error instanceof Error) {
+      errorDetails = error.message;
+      
+      // Check for common issues
+      if (error.message.includes('API key')) {
+        errorDetails = 'GROQ API key is missing or invalid. Please check your .env file.';
+      } else if (error.message.includes('rate limit')) {
+        errorDetails = 'GROQ API rate limit exceeded. Please wait a moment and try again.';
+      } else if (error.message.includes('timeout')) {
+        errorDetails = 'Request timed out. The AI model is taking too long to respond.';
+      }
+    }
     
     return NextResponse.json(
       {
         error: 'Agentic analysis failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorDetails,
+        technicalDetails: error instanceof Error ? error.message : String(error),
         fallback: {
           diagnosis: 'System Error',
           diagnosisDetail: 'The autonomous agent encountered an error. Please retry or contact medical support.',

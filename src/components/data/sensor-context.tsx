@@ -42,6 +42,8 @@ export interface SensorData {
   fluid: FluidMetricData
   heartRate: MetricData
   spo2: MetricData
+  respiratoryRate: MetricData
+  perfusionIndex: MetricData
   fusion: FusionData
 }
 
@@ -51,6 +53,8 @@ export interface ChartDataPoint {
   fluid: number
   heartRate: number
   spo2: number
+  respiratoryRate: number
+  perfusionIndex: number
 }
 
 const INITIAL_DATA: SensorData = {
@@ -68,6 +72,14 @@ const INITIAL_DATA: SensorData = {
   },
   spo2: { 
     value: 0, unit: "%", status: "GREEN", 
+    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
+  },
+  respiratoryRate: { 
+    value: 0, unit: "brpm", status: "GREEN", 
+    styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
+  },
+  perfusionIndex: { 
+    value: 0, unit: "", status: "GREEN", 
     styles: { color: "text-slate-400", bg: "bg-slate-50", bar: "bg-slate-200", badge: "Loading...", badgeColor: "bg-slate-100 text-slate-500" } 
   },
   fusion: {
@@ -108,7 +120,9 @@ export function SensorProvider({ children }: { children: ReactNode }) {
             urea: newData.urea.value,
             fluid: newData.fluid.value * 100, // Scale up for visibility on chart
             heartRate: newData.heartRate.value,
-            spo2: newData.spo2.value
+            spo2: newData.spo2.value,
+            respiratoryRate: newData.respiratoryRate.value,
+            perfusionIndex: newData.perfusionIndex.value
           }
           
           // Keep data for the last 5 minutes to ensure smooth scrolling

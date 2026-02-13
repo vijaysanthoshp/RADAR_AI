@@ -4,16 +4,32 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Send, Bot, User, Loader2 } from "lucide-react"
+import { ArrowLeft, Send, Bot, User, Loader2, Mic, MicOff, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChat } from "@/components/chat/chat-context"
+import { useVoice } from "@/contexts/VoiceContext"
 
 export default function ChatbotPage() {
   const { messages, sendMessage, isLoading } = useChat()
   const [inputValue, setInputValue] = useState("")
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  
+  // Voice features
+  const { 
+    isListening, 
+    transcript, 
+    interimTranscript,
+    voiceEnabled, 
+    toggleVoice,
+    startListening, 
+    stopListening,
+    stopSpeaking,
+    speak 
+  } = useVoice()
+  const [autoReadResponses, setAutoReadResponses] = useState(true)
+  const lastMessageCountRef = useRef(messages.length)
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -25,8 +41,38 @@ export default function ChatbotPage() {
     scrollToBottom()
   }, [messages])
 
+  // Auto-read new AI responses
+  useEffect(() => {
+    if (autoReadResponses && voiceEnabled && messages.length > lastMessageCountRef.current) {
+      const latestMessage = messages[messages.length - 1]
+      if (latestMessage.sender === 'assistant') {
+        speak(latestMessage.text, { urgency: 'normal' })
+      }
+    }
+    lastMessageCountRef.current = messages.length
+  }, [messages, autoReadResponses, voiceEnabled, speak])
+
+  // Handle voice transcript - auto-send when complete
+  useEffect(() => {
+    if (transcript && !isListening) {
+      setInputValue(transcript)
+      // Auto-send after voice input completes
+      setTimeout(async () => {
+        if (transcript.trim() && !isLoading) {
+          stopSpeaking() // Stop any ongoing speech
+          await sendMessage(transcript)
+          setInputValue("")
+        }
+      }, 500)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript, isListening])
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
+    
+    // Stop any ongoing speech when sending a new message
+    stopSpeaking()
     
     const text = inputValue
     setInputValue("")
@@ -39,18 +85,51 @@ export default function ChatbotPage() {
     }
   }
 
+  const handleVoiceInput = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      setInputValue("") // Clear text input when starting voice
+      startListening()
+    }
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6 shrink-0">
-        <Link href="/dashboard">
-          <Button variant="ghost" size="icon" className="rounded-full hover:bg-slate-100">
-            <ArrowLeft className="h-6 w-6 text-slate-600" />
+      <div className="flex items-center justify-between mb-6 shrink-0">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard">
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-slate-100">
+              <ArrowLeft className="h-6 w-6 text-slate-600" />
+            </Button>
+          </Link>
+          <div>
+            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">System Overview</p>
+            <h1 className="text-2xl font-bold text-slate-900">AI Assistant</h1>
+          </div>
+        </div>
+
+        {/* Voice Controls */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={autoReadResponses ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAutoReadResponses(!autoReadResponses)}
+            className="gap-2"
+          >
+            {autoReadResponses ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <span className="hidden sm:inline">Auto-Read</span>
           </Button>
-        </Link>
-        <div>
-          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">System Overview</p>
-          <h1 className="text-2xl font-bold text-slate-900">AI Assistant</h1>
+          <Button
+            variant={voiceEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={toggleVoice}
+            className="gap-2"
+          >
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+            <span className="hidden sm:inline">{voiceEnabled ? 'Voice On' : 'Voice Off'}</span>
+          </Button>
         </div>
       </div>
 
@@ -134,18 +213,48 @@ export default function ChatbotPage() {
 
         {/* Input Area */}
         <div className="p-4 bg-slate-50 border-t border-slate-100">
+          {/* Voice Transcript Display */}
+          {isListening && (
+            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="flex items-center gap-2 mb-1">
+                <Mic className="h-4 w-4 text-blue-600 animate-pulse" />
+                <span className="text-xs font-medium text-blue-600">Listening...</span>
+              </div>
+              {(interimTranscript || transcript) && (
+                <p className="text-sm text-slate-700">
+                  {transcript}
+                  <span className="text-slate-400">{interimTranscript}</span>
+                </p>
+              )}
+            </div>
+          )}
+          
           <div className="flex gap-2">
             <Input
-              placeholder="Type your message..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={isListening ? "Listening to your voice..." : "Type your message or use voice..."}
+              value={isListening ? (transcript + interimTranscript) : inputValue}
+              onChange={(e) => !isListening && setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isLoading}
+              disabled={isLoading || isListening}
               className="flex-1 bg-white border-slate-200 focus-visible:ring-blue-500 text-slate-900"
             />
+            
+            {/* Voice Input Button */}
+            {voiceEnabled && (
+              <Button
+                onClick={handleVoiceInput}
+                disabled={isLoading}
+                variant={isListening ? "default" : "outline"}
+                className={isListening ? "bg-red-600 hover:bg-red-700 text-white animate-pulse" : ""}
+              >
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            )}
+            
+            {/* Send Button */}
             <Button 
               onClick={handleSendMessage} 
-              disabled={!inputValue.trim() || isLoading}
+              disabled={!inputValue.trim() || isLoading || isListening}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Send className="h-4 w-4" />

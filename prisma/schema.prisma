@@ -1,0 +1,104 @@
+// This is your Prisma schema file for Supabase PostgreSQL
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")      // Uses connection pooling (port 6543)
+  directUrl = env("DIRECT_URL")        // Direct connection for migrations (port 5432)
+}
+
+// Patient Information
+model Patient {
+  id                   String             @id @default(uuid())
+  name                 String
+  age                  Int
+  gender               String
+  medicalRecordNumber  String             @unique @map("medical_record_number")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  
+  // Relations
+  emergencyContacts    EmergencyContact[]
+  alertHistory         AlertHistory[]
+
+  @@map("patients")
+}
+
+// Emergency Contacts for Multi-Channel Alerts
+model EmergencyContact {
+  id                      String   @id @default(uuid())
+  patientId               String   @map("patient_id")
+  name                    String
+  role                    String   // "Primary Physician", "Nurse", "Family", etc.
+  phone                   String
+  email                   String?
+  priority                Int      @default(1) // 1 = Primary, 2 = Secondary, etc.
+  notificationPreferences String[] @map("notification_preferences") // ["sms", "email", "call", "push"]
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  patient                 Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("emergency_contacts")
+}
+
+// Alert History and Acknowledgment Tracking
+model AlertHistory {
+  id               String    @id @default(uuid())
+  patientId        String    @map("patient_id")
+  severity         String    // "GREEN", "YELLOW", "ORANGE", "RED"
+  message          String
+  heartRate        Float     @map("heart_rate")
+  respiratoryRate  Float     @map("respiratory_rate")
+  spo2             Float
+  perfusionIndex   Float     @map("perfusion_index")
+  fusionScore      Float     @map("fusion_score")
+  channelsSent     String[]  @map("channels_sent") // ["sms", "email", "call", "push", "webhook"]
+  acknowledged     Boolean   @default(false)
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  acknowledgedBy   String?   @map("acknowledged_by") // Emergency contact ID or name
+  createdAt        DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("alert_history")
+}
+
+// Push Notification Subscriptions
+model PushSubscription {
+  id           String   @id @default(uuid())
+  userId       String?  @map("user_id") // Optional: link to user account
+  endpoint     String   @unique
+  p256dh       String   // Public key for encryption
+  auth         String   // Authentication secret
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastUsed     DateTime @default(now()) @map("last_used")
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// Rate Limiting for Alert Spam Prevention
+model AlertRateLimit {
+  id                String   @id @default(uuid())
+  patientId         String   @map("patient_id")
+  severity          String   // "YELLOW", "ORANGE", "RED"
+  lastAlertSent     DateTime @map("last_alert_sent")
+  alertCount        Int      @default(1) @map("alert_count")
+  cooldownUntil     DateTime @map("cooldown_until")
+
+  @@unique([patientId, severity])
+  @@index([patientId])
+  @@map("alert_rate_limits")
+}

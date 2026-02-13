@@ -112,7 +112,7 @@ export const EmergencyVoiceAlert: React.FC = () => {
     if (!autoSpeak || !voiceEnabled || !latestData || isAlertingRef.current) return;
 
     const currentTime = Date.now();
-    const urgency = latestData.urgency || 'GREEN';
+    const urgency = latestData.fusion.finalRisk || 'GREEN';
     
     // Cooldown periods (prevent spam)
     const cooldownPeriods: Record<string, number> = {
@@ -142,7 +142,7 @@ export const EmergencyVoiceAlert: React.FC = () => {
         isAlertingRef.current = false;
       }, 3000);
     }
-  }, [latestData?.urgency, autoSpeak, voiceEnabled]);
+  }, [latestData?.fusion.finalRisk, autoSpeak, voiceEnabled]);
 
   const speakAlert = (urgency: string, data: any) => {
     const messages = ALERT_MESSAGES[language as keyof typeof ALERT_MESSAGES] || ALERT_MESSAGES.en;

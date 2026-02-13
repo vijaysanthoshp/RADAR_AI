@@ -8,6 +8,8 @@ interface SimulationKeyframe {
   urea: number;
   hr: number;
   spo2: number;
+  rr: number;
+  ppi: number;
 }
 
 // --- Configuration ---
@@ -15,10 +17,10 @@ interface SimulationKeyframe {
 const SCENARIO_DURATION_MS = 0.5 * 60 * 1000; // 1.5 minutes
 
 const KEYFRAMES: SimulationKeyframe[] = [
-  { timeMs: 0, fluid: 0.38, urea: 35, hr: 72, spo2: 98 },                               // 0 hr (Baseline)
-  { timeMs: (6 / 14) * SCENARIO_DURATION_MS, fluid: 0.44, urea: 85, hr: 110, spo2: 96 },  // 6 hr (Early Shift)
-  { timeMs: (10 / 14) * SCENARIO_DURATION_MS, fluid: 0.47, urea: 120, hr: 130, spo2: 91 }, // 10 hr (Escalation)
-  { timeMs: SCENARIO_DURATION_MS, fluid: 0.50, urea: 160, hr: 145, spo2: 84 }           // 14 hr (Crisis)
+  { timeMs: 0, fluid: 0.38, urea: 35, hr: 72, spo2: 98, rr: 16, ppi: 2.5 },                               // 0 hr (Baseline)
+  { timeMs: (6 / 14) * SCENARIO_DURATION_MS, fluid: 0.44, urea: 85, hr: 110, spo2: 96, rr: 22, ppi: 1.5 },  // 6 hr (Early Shift)
+  { timeMs: (10 / 14) * SCENARIO_DURATION_MS, fluid: 0.47, urea: 120, hr: 130, spo2: 91, rr: 26, ppi: 0.8 }, // 10 hr (Escalation)
+  { timeMs: SCENARIO_DURATION_MS, fluid: 0.50, urea: 160, hr: 145, spo2: 84, rr: 30, ppi: 0.4 }           // 14 hr (Crisis)
 ];
 
 // --- Classification Logic ---
@@ -39,19 +41,33 @@ export const classifyFluid = (ecw: number): string => {
 };
 
 export const classifyHeartRate = (val: number): string => {
-  if (val >= 60 && val <= 100) return "GREEN";
-  if ((val >= 101 && val <= 120) || (val >= 41 && val <= 59)) return "GREEN"; // Merged Blue into Green
-  if (val >= 121 && val <= 140) return "YELLOW";
-  if (val < 30) return "RED";
-  if (val > 140 || val < 40) return "ORANGE";
+  if (val >= 51 && val <= 100) return "GREEN";
+  if ((val >= 41 && val <= 50) || (val >= 101 && val <= 110)) return "YELLOW";
+  if (val >= 111 && val <= 129) return "ORANGE";
+  if (val <= 40 || val >= 130) return "RED";
   return "GREEN";
 };
 
 export const classifySpo2 = (val: number): string => {
-  if (val >= 92) return "GREEN"; // Merged Blue (92-95) into Green
-  if (val >= 90 && val <= 91) return "YELLOW";
-  if (val >= 85 && val < 90) return "ORANGE";
-  return "RED"; // < 85
+  if (val >= 96) return "GREEN";
+  if (val >= 94 && val <= 95) return "YELLOW";
+  if (val >= 92 && val <= 93) return "ORANGE";
+  return "RED"; // < 92
+};
+
+export const classifyRespiratoryRate = (val: number): string => {
+  if (val >= 12 && val <= 20) return "GREEN";
+  if (val >= 9 && val <= 11) return "YELLOW";
+  if (val >= 21 && val <= 24) return "ORANGE";
+  if (val <= 8 || val >= 25) return "RED";
+  return "GREEN";
+};
+
+export const classifyPerfusionIndex = (val: number): string => {
+  if (val > 2.0) return "GREEN";
+  if (val >= 1.1 && val <= 2.0) return "YELLOW";
+  if (val >= 0.6 && val <= 1.0) return "ORANGE";
+  return "RED"; // <= 0.5 (Shock risk)
 };
 
 // --- Styling Logic ---
@@ -93,15 +109,14 @@ const REVERSE_SEVERITY_MAP: Record<number, string> = {
 
 export const getSeverity = (risk: string): number => SEVERITY_MAP[risk] || 0;
 
-export const calculateFusionScore = (ureaRisk: string, fluidRisk: string, hrRisk: string, spo2Risk: string): number => {
-  const sUrea = getSeverity(ureaRisk);
-  const sFluid = getSeverity(fluidRisk);
+export const calculateFusionScore = (hrRisk: string, spo2Risk: string, rrRisk: string, ppiRisk: string): number => {
   const sHr = getSeverity(hrRisk);
   const sSpo2 = getSeverity(spo2Risk);
+  const sRr = getSeverity(rrRisk);
+  const sPpi = getSeverity(ppiRisk);
 
-  // Weights: HR (0.30), Fluid (0.22), Urea (0.15), SpO2 (0.12)
-  // Note: Weights sum to 0.79, not 1.0. We use the raw sum as per instructions.
-  const score = (sHr * 0.30) + (sFluid * 0.22) + (sUrea * 0.15) + (sSpo2 * 0.12);
+  // Weights: HR (0.25), SpO2 (0.25), RR (0.25), PPI (0.25) - Equal weights for 4 vital signs
+  const score = (sHr * 0.25) + (sSpo2 * 0.25) + (sRr * 0.25) + (sPpi * 0.25);
   return parseFloat(score.toFixed(2));
 };
 
@@ -113,22 +128,22 @@ export const getRiskFromScore = (score: number): string => {
   return "GREEN";
 };
 
-export const generateFusionOutput = (score: number, ureaRisk: string, fluidRisk: string, hrRisk: string, spo2Risk: string) => {
+export const generateFusionOutput = (score: number, hrRisk: string, spo2Risk: string, rrRisk: string, ppiRisk: string) => {
   const finalRisk = getRiskFromScore(score);
   
   let summary = "Your Status: Stable";
-  let urgentActions = "Analysis based on multi-parameter fusion. Continue monitoring all vitals.";
+  let urgentActions = "Analysis based on multi-parameter vital signs fusion. Continue monitoring.";
   let longTermAdvice = "Maintain healthy lifestyle and regular checkups.";
 
   if (finalRisk === "RED") {
-    summary = "CRITICAL: Immediate attention required due to high risk indicators.";
-    urgentActions = "Alert medical staff immediately. Check hydration and kidney function.";
+    summary = "CRITICAL: Immediate attention required due to high risk vital signs.";
+    urgentActions = "Alert medical staff immediately. Check all vital signs urgently.";
   } else if (finalRisk === "ORANGE") {
-    summary = "WARNING: Elevated risk detected.";
-    urgentActions = "Consult nephrologist. Monitor fluid intake closely.";
+    summary = "WARNING: Elevated risk detected in vital signs.";
+    urgentActions = "Consult physician. Monitor vital signs closely.";
   } else if (finalRisk === "YELLOW") {
     summary = "CAUTION: Moderate risk indicators present.";
-    urgentActions = "Schedule follow-up. Review diet and medication.";
+    urgentActions = "Schedule follow-up. Review vital signs and medication.";
   }
 
   // Styles for the fusion card
@@ -149,7 +164,15 @@ export const generateFusionOutput = (score: number, ureaRisk: string, fluidRisk:
   } 
   // Removed BLUE style block
 
-  return { finalRisk, score, summary, urgentActions, longTermAdvice, styles };
+  return { 
+    finalRisk, // Primary property
+    risk: finalRisk, // Alias for backward compatibility
+    score, 
+    summary, 
+    urgentActions, 
+    longTermAdvice, 
+    styles 
+  };
 };
 
 // --- Simulation Logic ---
@@ -185,8 +208,10 @@ const getSimulationData = (elapsedTimeMs: number) => {
   const urea = interpolate(startFrame.urea, endFrame.urea, progress);
   const hr = interpolate(startFrame.hr, endFrame.hr, progress);
   const spo2 = interpolate(startFrame.spo2, endFrame.spo2, progress);
+  const rr = interpolate(startFrame.rr, endFrame.rr, progress);
+  const ppi = interpolate(startFrame.ppi, endFrame.ppi, progress);
 
-  return { fluid, urea, hr, spo2 };
+  return { fluid, urea, hr, spo2, rr, ppi };
 };
 
 export const generatePatientData = (elapsedTimeMs: number = 0) => {
@@ -199,16 +224,20 @@ export const generatePatientData = (elapsedTimeMs: number = 0) => {
     const phaseAngleVal = parseFloat((Math.random() * (6.0 - 4.0) + 4.0).toFixed(1)); // Random PA for now as it wasn't specified in scenario
     const heartRateVal = Math.round(sim.hr);
     const spo2Val = Math.round(sim.spo2);
+    const rrVal = Math.round(sim.rr);
+    const ppiVal = parseFloat(sim.ppi.toFixed(1));
 
     // Classify
     const ureaRisk = classifyUrea(ureaVal);
     const fluidRisk = classifyFluid(fluidVal);
     const hrRisk = classifyHeartRate(heartRateVal);
     const spo2Risk = classifySpo2(spo2Val);
+    const rrRisk = classifyRespiratoryRate(rrVal);
+    const ppiRisk = classifyPerfusionIndex(ppiVal);
 
-    // Fuse
-    const fusionScore = calculateFusionScore(ureaRisk, fluidRisk, hrRisk, spo2Risk);
-    const fusion = generateFusionOutput(fusionScore, ureaRisk, fluidRisk, hrRisk, spo2Risk);
+    // Fuse (only using 4 vital sign parameters)
+    const fusionScore = calculateFusionScore(hrRisk, spo2Risk, rrRisk, ppiRisk);
+    const fusion = generateFusionOutput(fusionScore, hrRisk, spo2Risk, rrRisk, ppiRisk);
 
     // Construct Response
     return {
@@ -244,6 +273,22 @@ export const generatePatientData = (elapsedTimeMs: number = 0) => {
         risk: spo2Risk,
         reason: `SPO2 ${spo2Val}% is ${spo2Risk}`,
         styles: getStyles(spo2Risk)
+      },
+      respiratoryRate: {
+        value: rrVal,
+        unit: "brpm",
+        status: rrRisk,
+        risk: rrRisk,
+        reason: `RR ${rrVal} is ${rrRisk}`,
+        styles: getStyles(rrRisk)
+      },
+      perfusionIndex: {
+        value: ppiVal,
+        unit: "",
+        status: ppiRisk,
+        risk: ppiRisk,
+        reason: `PPI ${ppiVal} is ${ppiRisk}`,
+        styles: getStyles(ppiRisk)
       },
       fusion: fusion
     };
